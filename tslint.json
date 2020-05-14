@@ -1,0 +1,25 @@
+{
+    "defaultSeverity": "error",
+    "extends": [
+        "tslint:recommended"
+    ],
+    "jsRules": {},
+    "rules": {
+        "trailing-comma": "never",
+        "quotemark": "single",
+        "no-console": false,
+        "no-var-requires": false,
+        "variable-name": {
+            "options": [
+                "check-format",
+                "allow-leading-underscore"
+            ]
+        }
+    },
+    "rulesDirectory": [],
+    "linterOptions": {
+        "exclude": [
+            "tsconfig.json"
+        ]
+    }
+}
