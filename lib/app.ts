@@ -1,16 +1,17 @@
-import * as bodyParser from "body-parser";
-import * as express from "express";
-import * as http from "http";
+import * as bodyParser from 'body-parser';
+import * as express from 'express';
+import * as http from 'http';
 
-import { RouteProvider } from "./routes";
+import { RouteProvider } from './routes';
+import { SocketController } from './socketController';
 
-var cors = require("cors");
+var cors = require('cors');
 
 class App {
     public app: express.Application;
     public routeProvider = new RouteProvider();
     public server: http.Server;
-    public io: SocketIO.Server;
+    public socketController: SocketController;
 
     private readonly PORT = process.env.PORT || 3000;
 
@@ -35,7 +36,7 @@ class App {
         this.app.use(bodyParser.urlencoded({ extended: false }));
 
         // serve up images from the public directory
-        this.app.use(express.static("lib/public"));
+        this.app.use(express.static('lib/public'));
     }
 
     private configureServer(): void {
@@ -43,22 +44,10 @@ class App {
     }
 
     private configureSockets(): void {
-        this.io = require("socket.io").listen(this.server, { origins: "*:*" });
+        this.socketController = new SocketController(this.server);
 
         this.server.listen(this.PORT, () => {
-            console.log("Running server on port %s", this.PORT);
-        });
-
-        this.io.on("connect", (socket: any) => {
-            console.log("Connected client on port %s.", this.PORT);
-            socket.on("message", (m: any) => {
-                console.log("[server](message): %s", JSON.stringify(m));
-                this.io.emit("message", m);
-            });
-
-            socket.on("disconnect", () => {
-                console.log("Client disconnected");
-            });
+            console.log('Running server on port %s', this.PORT);
         });
     }
 }
