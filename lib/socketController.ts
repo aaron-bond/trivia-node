@@ -4,13 +4,15 @@ import { Socket } from 'socket.io';
 enum Server {
     CreateRoom = 'create-room',
     JoinRoom = 'join-room',
-    ShareInformation = 'share-information'
+    ShareInformation = 'share-information',
+    SynchroniseLobby = 'synchronise-lobby'
 }
 
 enum Client {
     RoomCreated = 'room-created',
     RoomJoined = 'room-joined',
-    InformationShared = 'information-shared'
+    InformationShared = 'information-shared',
+    LobbySynchronised = 'lobby-synchronised'
 }
 
 export class SocketController {
@@ -33,6 +35,7 @@ export class SocketController {
             socket.on(Server.JoinRoom, (roomId: string) => this.joinRoom(socket, roomId));
 
             socket.on(Server.ShareInformation, (information: string) => this.shareInformation(socket, information));
+            socket.on(Server.SynchroniseLobby, (lobby: string) => this.synchroniseLobby(socket, lobby));
 
             socket.on('disconnect', (socket: Socket) => {
                 console.log('Client disconnected');
@@ -83,6 +86,16 @@ export class SocketController {
      */
     private shareInformation(socket: Socket, information: string): void {
         socket.broadcast.emit(Client.InformationShared, information);
+    }
+
+    /**
+     *
+     * @param socket
+     * @param lobby
+     */
+    private synchroniseLobby(socket: Socket, lobby: string): void {
+        console.log(lobby);
+        socket.broadcast.emit(Client.LobbySynchronised, lobby);
     }
 
     /**
