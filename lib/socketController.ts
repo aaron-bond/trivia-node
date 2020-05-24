@@ -2,23 +2,24 @@ import * as http from 'http';
 import { Socket } from 'socket.io';
 
 enum Server {
-    CreateRoom = 'create-room',
-    JoinRoom = 'join-room',
+    CreateLobby = 'create-lobby',
+    JoinLobby = 'join-lobby',
     ShareInformation = 'share-information',
     SynchroniseLobby = 'synchronise-lobby'
 }
 
 enum Client {
-    RoomCreated = 'room-created',
-    RoomJoined = 'room-joined',
+    LobbyCreated = 'lobby-created',
+    LobbyClosed = 'lobby-closed',
+    LobbyJoined = 'lobby-joined',
     InformationShared = 'information-shared',
     LobbySynchronised = 'lobby-synchronised'
 }
 
 export class SocketController {
     private io: SocketIO.Server;
-    private rooms: string[] = [];
-    private readonly maxRooms = 10;
+    private lobbies: string[] = [];
+    private readonly maxLobbies = 50;
 
     /**
      *
@@ -28,19 +29,17 @@ export class SocketController {
         this.io = require('socket.io').listen(server, { origins: '*:*' });
 
         this.io.on('connect', (socket: Socket) => {
-            // The host of the room will trigger the create-room message
-            socket.on(Server.CreateRoom, (playerInfo: string) => this.createRoom(socket));
+            // The host of the lobby will trigger the create-lobby message
+            socket.on(Server.CreateLobby, (playerInfo: string) => this.createLobby(socket));
 
-            // All other clients will trigger join-room
-            socket.on(Server.JoinRoom, (roomId: string) => this.joinRoom(socket, roomId));
+            // All other clients will trigger join-lobby
+            socket.on(Server.JoinLobby, (lobbyId: string) => this.joinLobby(socket, lobbyId));
 
             socket.on(Server.ShareInformation, (information: string) => this.shareInformation(socket, information));
             socket.on(Server.SynchroniseLobby, (lobby: string) => this.synchroniseLobby(socket, lobby));
 
             socket.on('disconnect', (socket: Socket) => {
                 console.log('Client disconnected');
-
-                // TODO: figure out how to close a room when all clients disconnect
             });
         });
     }
@@ -49,35 +48,44 @@ export class SocketController {
      *
      * @param socket
      */
-    private createRoom(socket: Socket): void {
-        // TODO: figure out what the upper-limit here should be
-        if (this.rooms.length >= this.maxRooms) {
-            console.error('max room count reached');
+    private createLobby(socket: Socket): void {
+        if (this.lobbies.length >= this.maxLobbies) {
+            console.error('max lobby count reached');
             return;
         }
 
-        let roomCode = this.generateRoomCode();
-        this.joinRoom(socket, roomCode);
+        console.info('lobby count: ' + this.lobbies.length);
 
-        // Only the host will be waiting for the room-created event
-        socket.emit(Client.RoomCreated, roomCode);
+        let lobbyCode = this.generateLobbyCode();
+        this.joinLobby(socket, lobbyCode);
+
+        // Only the host will be waiting for the lobby-created event
+        socket.emit(Client.LobbyCreated, lobbyCode);
+
+        // ? Only the host should listen for this disconnect
+        socket.on('disconnect', (socket: Socket) => {
+            console.log('Host disconnected');
+
+            this.closeLobby(lobbyCode);
+        });
     }
 
     /**
      *
      * @param socket
-     * @param roomId
+     * @param lobbyId
      */
-    private joinRoom(socket: Socket, roomId: string): void {
-        socket.join(roomId, (error) => {
+    private joinLobby(socket: Socket, lobbyId: string): void {
+        socket.join(lobbyId, (error) => {
             if (error) {
                 console.error(error);
-            } else {
-                this.rooms.push(roomId);
-
-                // Let the socket know it's joined successfully
-                socket.emit(Client.RoomJoined);
+                return;
             }
+
+            this.lobbies.push(lobbyId);
+
+            // Let the socket know it's joined successfully
+            socket.emit(Client.LobbyJoined);
         });
     }
 
@@ -94,14 +102,36 @@ export class SocketController {
      * @param lobby
      */
     private synchroniseLobby(socket: Socket, lobby: string): void {
-        console.log(lobby);
         socket.broadcast.emit(Client.LobbySynchronised, lobby);
     }
 
     /**
      *
      */
-    private generateRoomCode(): string {
+    private generateLobbyCode(): string {
         return Math.random().toString(36).substr(2, 5);
+    }
+
+    /**
+     *
+     * @param lobbyCode
+     */
+    private closeLobby(lobbyCode: string): void {
+        // Remove the lobby from the set
+        this.lobbies = this.lobbies.filter((lobbyId) => lobbyId !== lobbyCode);
+
+        // Disconnect any clients
+        this.io.sockets.in(lobbyCode).clients((error: string, socketIds: string[]) => {
+            if (error) {
+                console.error(error);
+                return;
+            }
+
+            socketIds.forEach((socketId: string) => {
+                this.io.sockets.sockets[socketId].leave(lobbyCode);
+
+                this.io.sockets.sockets[socketId].emit(Client.LobbyClosed);
+            });
+        });
     }
 }
